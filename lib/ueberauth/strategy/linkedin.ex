@@ -5,7 +5,8 @@ defmodule Ueberauth.Strategy.LinkedIn do
 
   use Ueberauth.Strategy,
     uid_field: :id,
-    default_scope: "r_basicprofile r_emailaddress"
+    default_scope: "r_basicprofile r_emailaddress",
+    profile_fields: "id,email-address,first-name,last-name"
 
   alias Ueberauth.Auth.Info
   alias Ueberauth.Auth.Credentials
@@ -40,20 +41,17 @@ defmodule Ueberauth.Strategy.LinkedIn do
       token_error = token.other_params["error"]
       token_error_description = token.other_params["error_description"]
 
-      conn
-      |> delete_resp_cookie(@state_cookie_name)
-      |> set_errors!([error(token_error, token_error_description)])
+      set_errors!(conn, [error(token_error, token_error_description)])
     else
       if conn.cookies[@state_cookie_name] == state do
         conn
-        |> delete_resp_cookie(@state_cookie_name)
-        |> fetch_user(token)
+        |> put_private(:linkedin_token, token)
+        |> fetch_user()
       else
-        conn
-        |> delete_resp_cookie(@state_cookie_name)
-        |> set_errors!([error("csrf", "CSRF token mismatch")])
+        set_errors!(conn, [error("csrf", "CSRF token mismatch")])
       end
     end
+    |> delete_resp_cookie(@state_cookie_name)
   end
 
   @doc false
@@ -101,12 +99,17 @@ defmodule Ueberauth.Strategy.LinkedIn do
   """
   def info(conn) do
     user = conn.private.linkedin_user
+    original_picture = List.first(user["pictureUrls"]["values"])
 
     %Info{
       email: user["emailAddress"],
       first_name: user["firstName"],
-      image: user["pictureUrl"],
-      last_name: user["lastName"]
+      image: original_picture || user["pictureUrl"],
+      last_name: user["lastName"],
+      name: "#{user["firstName"]} #{user["lastName"]}",
+      location: user["location"]["name"],
+      urls: %{linkedin: user["publicProfileUrl"]},
+      phone: nil
     }
   end
 
@@ -123,17 +126,19 @@ defmodule Ueberauth.Strategy.LinkedIn do
     }
   end
 
-  defp skip_url_encode_option, do: [path_encode_fun: fn a -> a end]
+  defp skip_url_encode_option(), do: [path_encode_fun: fn a -> a end]
 
-  defp user_query do
-    "/v1/people/~:(id,picture-url,email-address,firstName,lastName)?format=json"
+  defp user_query(conn) do
+    fields = option(conn, :profile_fields)
+
+    "/v1/people/~:(#{fields})?format=json"
   end
 
-  defp fetch_user(conn, token) do
-    conn = put_private(conn, :linkedin_token, token)
-    resp = Ueberauth.Strategy.LinkedIn.OAuth.get(token, user_query, [], skip_url_encode_option)
+  defp fetch_user(conn) do
+    token = conn.private.linkedin_token
 
-    IO.puts("linkedin fetch_user, resp = #{inspect(resp)}")
+    resp =
+      Ueberauth.Strategy.LinkedIn.OAuth.get(token, user_query(conn), [], skip_url_encode_option())
 
     case resp do
       {:ok, %OAuth2.Response{status_code: 401, body: _body}} ->
@@ -149,6 +154,6 @@ defmodule Ueberauth.Strategy.LinkedIn do
   end
 
   defp option(conn, key) do
-    Dict.get(options(conn), key, Dict.get(default_options, key))
+    Keyword.get(options(conn), key, Keyword.get(default_options(), key))
   end
 end
