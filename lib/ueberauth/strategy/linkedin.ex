@@ -18,12 +18,9 @@ defmodule Ueberauth.Strategy.LinkedIn do
   """
   def handle_request!(conn) do
     scopes = conn.params["scope"] || option(conn, :default_scope)
-    state =
-      conn.params["state"] || Base.encode64(:crypto.strong_rand_bytes(16))
+    state = conn.params["state"] || Base.encode64(:crypto.strong_rand_bytes(16))
 
-    opts = [scope: scopes,
-            state: state,
-            redirect_uri: callback_url(conn)]
+    opts = [scope: scopes, state: state, redirect_uri: callback_url(conn)]
 
     conn
     |> put_resp_cookie(@state_cookie_name, state)
@@ -33,14 +30,16 @@ defmodule Ueberauth.Strategy.LinkedIn do
   @doc """
   Handles the callback from LinkedIn.
   """
-  def handle_callback!(%Plug.Conn{params: %{"code" => code,
-                                            "state" => state}} = conn) do
+  def handle_callback!(%Plug.Conn{params: %{"code" => code, "state" => state}} = conn) do
     opts = [redirect_uri: callback_url(conn)]
-    %OAuth2.Client{token: token} = Ueberauth.Strategy.LinkedIn.OAuth.get_token!([code: code], opts)
+
+    %OAuth2.Client{token: token} =
+      Ueberauth.Strategy.LinkedIn.OAuth.get_token!([code: code], opts)
 
     if token.access_token == nil do
       token_error = token.other_params["error"]
       token_error_description = token.other_params["error_description"]
+
       conn
       |> delete_resp_cookie(@state_cookie_name)
       |> set_errors!([error(token_error, token_error_description)])
@@ -124,7 +123,7 @@ defmodule Ueberauth.Strategy.LinkedIn do
     }
   end
 
-  defp skip_url_encode_option, do: [path_encode_fun: fn(a) -> a end]
+  defp skip_url_encode_option, do: [path_encode_fun: fn a -> a end]
 
   defp user_query do
     "/v1/people/~:(id,picture-url,email-address,firstName,lastName)?format=json"
@@ -134,15 +133,17 @@ defmodule Ueberauth.Strategy.LinkedIn do
     conn = put_private(conn, :linkedin_token, token)
     resp = Ueberauth.Strategy.LinkedIn.OAuth.get(token, user_query, [], skip_url_encode_option)
 
-IO.puts("linkedin fetch_user, resp = #{inspect resp}")
+    IO.puts("linkedin fetch_user, resp = #{inspect(resp)}")
 
     case resp do
-      { :ok, %OAuth2.Response{status_code: 401, body: _body}} ->
+      {:ok, %OAuth2.Response{status_code: 401, body: _body}} ->
         set_errors!(conn, [error("token", "unauthorized")])
-      { :ok, %OAuth2.Response{status_code: status_code, body: user} }
-        when status_code in 200..399 ->
-          put_private(conn, :linkedin_user, user)
-      { :error, %OAuth2.Error{reason: reason} } ->
+
+      {:ok, %OAuth2.Response{status_code: status_code, body: user}}
+      when status_code in 200..399 ->
+        put_private(conn, :linkedin_user, user)
+
+      {:error, %OAuth2.Error{reason: reason}} ->
         set_errors!(conn, [error("OAuth2", reason)])
     end
   end

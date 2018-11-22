@@ -11,11 +11,11 @@ defmodule Ueberauth.Strategy.LinkedIn.OAuth do
   use OAuth2.Strategy
 
   @defaults [
-     strategy: __MODULE__,
-     site: "https://api.linkedin.com",
-     authorize_url: "https://www.linkedin.com/uas/oauth2/authorization",
-     token_url: "https://www.linkedin.com/uas/oauth2/accessToken"
-   ]
+    strategy: __MODULE__,
+    site: "https://api.linkedin.com",
+    authorize_url: "https://www.linkedin.com/uas/oauth2/authorization",
+    token_url: "https://www.linkedin.com/uas/oauth2/accessToken"
+  ]
 
   @doc """
   Construct a client for requests to LinkedIn.
@@ -54,7 +54,7 @@ defmodule Ueberauth.Strategy.LinkedIn.OAuth do
   end
 
   def get(token, url, headers \\ [], opts \\ []) do
-    client([token: token])
+    client(token: token)
     |> OAuth2.Client.get(url, headers, opts)
   end
 
